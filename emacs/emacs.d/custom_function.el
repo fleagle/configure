@@ -131,19 +131,6 @@ If the file is emacs lisp, run the byte compiled version if exist."
   (setq c-basic-offset 8)
   (setq-default indent-tabs-mode nil)
   ;; (setq indent-tabs-mode t)
-  (imenu-add-to-menubar-index)
-  (which-function-mode)
-  ;; 输入左边的括号，就会自动补全右边的部分.包括(), "", [] , {} , 等
-  (make-local-variable 'skeleton-pair-alist)
-  (setq skeleton-pair-alist  '(
-    (?` ?` _ "''")
-    (?\( ?  _ " )")
-    (?\[ ?  _ " ]")
-    (?{ \n > _ \n ?} >)))
-  (setq skeleton-pair t)
-  (local-set-key (kbd "(") 'skeleton-pair-insert-maybe)
-  (local-set-key (kbd "{") 'skeleton-pair-insert-maybe)
-  (local-set-key (kbd "`") 'skeleton-pair-insert-maybe)
-  (local-set-key (kbd "[") 'skeleton-pair-insert-maybe))
+  (imenu-add-to-menubar-index))
 
 ;;; custom_function.el ends here
