@@ -1,0 +1,518 @@
+<?php
+function dboperate($time = 0,$op = array())
+{
+	require_once('oci_class.php');
+	require_once('cacheManager.class.php');
+	require_once('conn.php');
+	$cacheManager = new CacheManager();
+	
+	$donum = 10000;//程序最大每次执行10000条
+	
+	//rebuild base info to mengshuai
+	if($time == 0)
+	{
+		//applicationenv
+		$oracle = new DB_Oracle();
+		$conn = $oracle->connect(host,user,pwd,table,charset);
+		$query = 'select * from cpic_application';
+		$stid = $oracle->select($query);
+		$newstid = $stid;
+		$i = 0;
+		foreach ($stid as $temp){
+			$query = "select * from CPIC_APPLICATION_LIST where CLASSNAME = '".$temp['CLASSNAME']."'";
+			$dd = $oracle->select($query);
+			if ($dd) {
+				$query = "SELECT psk,application,version_code 
+					FROM (SELECT ROW_NUMBER() 
+						OVER(PARTITION BY application ORDER BY POSTDATE DESC ) 
+						lev,t.* 
+						from CPIC_APPLICATION_VERSION t 
+						where application ='".$dd[0]['PSK']."' ) 
+					WHERE lev = 1 ORDER BY POSTDATE DESC
+	 			";
+				$ee = $oracle->select($query);
+			}
+		
+			$newstid["{$i}"]['VERSION_CODE'] = strval($ee[0]['VERSION_CODE']);
+			unset($ee);
+			$i++;
+		}
+		$cacheManager->setValue('applicationenv', $newstid);
+		
+		//cpicvideo
+		$query = 'select * from cpic_video order by VIDEO_ORDER asc';
+		$stid = $oracle->select($query);
+		$videoarr = array();
+		foreach($stid as $key=>$video)
+		{
+			$videoarr[$key]['PSK'] = $video['PSK'];
+			$videoarr[$key]['VIDEO_TYPE'] = $video['VIDEO_TYPE'];
+			$videoarr[$key]['VIDEO_URL'] = $video['VIDEO_URL'];
+			if(!empty($video['VIDEO_URL']))
+			{
+				$file = explode('/',$video['VIDEO_URL']);
+				$filename = array_pop($file);
+				$ret = 0;
+				if(file_exists(fileurl.$filename))
+				{
+					$ret = filesize(fileurl.$filename);
+					$videoarr[$key]['FILE_SIZE'] = $ret;
+				}else{
+					$videoarr[$key]['FILE_SIZE'] = 0;
+				}
+				$cacheManager->setValue('videosize'.md5($filename), $ret);
+			}
+			$videoarr[$key]['VERSION'] = $video['VERSION'];
+			$videoarr[$key]['PIC_URL'] = isset($video['PIC_URL'])?$video['PIC_URL']:'';
+			$videoarr[$key]['VIDEO_ORDER'] = $video['VIDEO_ORDER'];
+			$videoarr[$key]['PIC_TEXT'] = isset($video['PIC_TEXT'])?$video['PIC_TEXT']:'';
+		}
+		$cacheManager->setValue('cpicvideo', $videoarr);
+		oci_close($conn);
+		file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s')." env and video memcache update.\r\n", FILE_APPEND );
+	}
+	
+	//userinfo to mapeng
+	if($time == 1)
+	{
+		if(!empty($op))
+		{
+			$oracle = new DB_Oracle();
+			$conn = $oracle->connect(host,user,pwd,table,charset);
+			//user mycard usercorpbusiness app's perm blackwhitelist
+			$email = $op['email'];
+			//userinfo
+			$query = "select * from user_nj where id = '".$email."'";
+			$stid = $oracle->select($query);
+			$userinfo = $stid[0];
+			$cacheManager->setValue('userinfo'.$email, $userinfo);
+			//usergroup
+			$query = "select CORP_PSK from USERGROUP where user_nj = '".$userinfo['PSK']."' and CORP_PSK is not null";
+			$stid = $oracle->select($query);
+			$groupid = $stid[0]['CORP_PSK'];
+			$cacheManager->setValue('usergroupid'.$email, $groupid);
+			oci_close($conn);
+			file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s').'  '.$email." memcache update.\r\n", FILE_APPEND );
+		}
+	}
+	
+	//usercorp to mapeng
+	if($time == 7)
+	{
+		$oracle = new DB_Oracle();
+		$conn = $oracle->connect(host,user,pwd,table,charset);
+		$query = 'select count(*) as num from USERCORPBUSINESS  ';
+		$stid = $oracle->select($query);
+		$num = $stid[0]['NUM'];
+		$page = ceil($num / $donum);
+		for($i=1;$i<=$page;$i++)
+		{
+			$query = 'select * from (SELECT rownum rn,dbtable.* from (select ucb1.id as keyval,(select max(ucb2.id) as corpid from USERCORPBUSINESS ucb2 where ucb2.ulevel = \'V505\' and ucb2.CORPCODE = ucb1.CORPCODE) as corpid,(select max(ucb3.id) as branchid from USERCORPBUSINESS ucb3 where ucb3.ulevel = \'V501\' and ucb3.BRANCHCODE = ucb1.BRANCHCODE) as branchid,(select max(ucb4.id) as zhongzhiid from USERCORPBUSINESS ucb4 where ucb4.ulevel = \'V502\' and ucb4.ZHONGZHICODE = ucb1.ZHONGZHICODE) as zhongzhiid,(select max(ucb5.id) as zhiid from USERCORPBUSINESS ucb5 where ucb5.ulevel = \'V504\' and ucb5.ZHICORPCODE = ucb1.ZHICORPCODE) as zhiid from USERCORPBUSINESS ucb1) dbtable where ROWNUM<='.($donum*$i).' ) where rn>'.($donum*($i-1));
+			$stid = $oracle->select($query);
+			foreach($stid as $val)
+			{
+				$cacheManager->setValue('usercorp'.$val['KEYVAL'], $val);
+			}
+		}
+		oci_close($conn);
+		file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s')."org memcache update.\r\n", FILE_APPEND );
+	}
+	
+	//mycard to mapeng
+	if($time == 2)
+	{
+		if(!empty($op))
+		{
+			$email = $op['email'];
+			$oracle = new DB_Oracle();
+			$conn = $oracle->connect(host,user,pwd,table,charset);
+			$query = 'SELECT  NAME1 as "agentName",CERNUMBER2 as "cerNumber",to_char(BIRTHDATE3,\'YYYY-MM-DD HH24:MI\') as "birthday",
+				(CASE
+					 WHEN GENDER4 = \'V12\' THEN
+					  2
+					 WHEN GENDER4 = \'V11\' THEN
+					  1
+				   END) as "sex",to_char(INSURANCEAGENCYSTARTDATE5,\'YYYY-MM-DD HH24:MI\') as "getCertDate",to_char(INSURANCEAGENCYENDDATE6,\'YYYY-MM-DD HH24:MI\') as "certValidate",ORGNAME7 as "organization",DIVCODE8 as "branchOrgcode",PARENTCODE9 as "orgCode",UNITCODE10 as "unitCode",EMPNO11 as "empNo",BRANCHNO41 as "branchNo",CHATYPE12 as "chaType",SALE_CHANNEL13 as "saleChannel",PRENAME14 as "preName",QUALIFICATIONNO15 as "qualificationNo",INSURANCEAGENCYNO16 as "insuranceAgencyNo",ZHINAME35 as "department",TEAMNAME36 as "team",FAXNUMBER19 as "tex",OFFICEPHONE20 as "phone",MOBILE21 as "mobile",HOMEPHONE29 as "homePhone",JOBCODE23 as "jobCode",PICURL24 as "pic",WORKADDRESS22 as "workAddress",INSURANCEAGENCYENDDATE25 as "loginRemindInfo",to_char(JOINDATE26,\'YYYY-MM-DD HH24:MI\') as "joinDate",CREDITSTAR40 as "creditStar",NETID28 as "netCode"
+			 FROM   mycardinfo 
+			 WHERE  empno11 = \''.$email.'\'';
+			$stid = $oracle->select($query);
+			$cacheManager->setValue('mycard'.$email, $stid[0]);
+			oci_close($conn);
+			file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s').'  '.$email." card memcache update.\r\n", FILE_APPEND );
+		}
+	}
+	
+	//edit application to mengshuai
+	if($time == 8)
+	{
+		$oracle = new DB_Oracle();
+		$conn = $oracle->connect(host,user,pwd,table,charset);
+		//build group_perm
+		$query = 'select count(*) as num from CPIC_GROUP_PERM ';
+		$stid = $oracle->select($query);
+		$num = $stid[0]['NUM'];
+		$page = ceil($num / $donum);
+		for($i=1;$i<=$page;$i++)
+		{
+			$query = 'select * from (SELECT rownum rn,dbtable.* from (select * from CPIC_GROUP_PERM ) dbtable where ROWNUM<='.($donum*$i).' ) where rn>'.($donum*($i-1));
+			$stid = $oracle->select($query);
+			foreach($stid as $val)
+			{
+				$keyinfo = $cacheManager->getValue('groupperm'.$val['GROUP_PSK']);
+				if(empty($keyinfo))
+				{
+					$newarr = array();
+					if($val['PERM'] == "1")
+					{
+						$newarr[] = $val['APP_PSK'];
+						$cacheManager->setValue('groupperm'.$val['GROUP_PSK'], $newarr);
+					}else{
+						$newarr[] = $val['APP_PSK'];
+						$cacheManager->setValue('groupperm'.$val['GROUP_PSK'], array());
+					}
+				}else{
+					if($val['PERM'] == "1")
+					{
+						$keyinfo[] = $val['APP_PSK'];
+						$keyinfo = array_unique($keyinfo);
+						$cacheManager->setValue('groupperm'.$val['GROUP_PSK'], $keyinfo);
+					}else{
+						$key = array_search($val['APP_PSK'],$keyinfo);
+						if($key !== false)
+						{
+							array_splice($keyinfo,$key,1);
+							$cacheManager->setValue('groupperm'.$val['GROUP_PSK'], $keyinfo);
+						}
+					}
+				}
+			}
+		}
+		//build whiteperm
+		$query = 'select count(*) as num from CPIC_USER_PERM where PERM_TYPE = 2';
+		$stid = $oracle->select($query);
+		$num = $stid[0]['NUM'];
+		$page = ceil($num / $donum);
+		for($i=1;$i<=$page;$i++)
+		{
+			$query = 'select * from (SELECT rownum rn,dbtable.* from (select cup.*,(select id from user_nj where psk = cup.user_psk) as empno from CPIC_USER_PERM cup where PERM_TYPE = 2 ) dbtable where ROWNUM<='.($donum*$i).' ) where rn>'.($donum*($i-1));
+			$stid = $oracle->select($query);
+			$newarr = array();
+			foreach($stid as $val)
+			{
+				if(!empty($val['EMPNO']))
+				{
+					$newarr[$val['EMPNO']][] = $val['APP_PSK'];
+					$newarr[$val['EMPNO']] = array_unique($newarr[$val['EMPNO']]);
+				}
+			}
+			foreach($newarr as $key => $emparr)
+			{
+				$cacheManager->setValue('whiteperm'.$key, $emparr);
+			}
+		}
+		//build blackperm
+		$query = 'select count(*) as num from CPIC_USER_PERM where PERM_TYPE = 1';
+		$stid = $oracle->select($query);
+		$num = $stid[0]['NUM'];
+		$page = ceil($num / $donum);
+		for($i=1;$i<=$page;$i++)
+		{
+			$query = 'select * from (SELECT rownum rn,dbtable.* from (select cup.*,(select id from user_nj where psk = cup.user_psk) as empno from CPIC_USER_PERM cup where PERM_TYPE = 1  ) dbtable where ROWNUM<='.($donum*$i).' ) where rn>'.($donum*($i-1));
+			$stid = $oracle->select($query);
+			$newarr = array();
+			foreach($stid as $val)
+			{
+				if(!empty($val['EMPNO']))
+				{
+					$newarr[$val['EMPNO']][] = $val['APP_PSK'];
+					$newarr[$val['EMPNO']] = array_unique($newarr[$val['EMPNO']]);
+				}
+			}
+			foreach($newarr as $key => $emparr)
+			{
+				$cacheManager->setValue('blackperm'.$key, $emparr);
+			}
+		}
+		//build channel
+		$query = 'select count(*) as num from CHANNEL_PERM';
+		$stid = $oracle->select($query);
+		$num = $stid[0]['NUM'];
+		$page = ceil($num / $donum);
+		for($i=1;$i<=$page;$i++)
+		{
+			$query = 'select * from (SELECT rownum rn,dbtable.* from (select * from CHANNEL_PERM ) dbtable where ROWNUM<='.($donum*$i).' ) where rn>'.($donum*($i-1));
+			$stid = $oracle->select($query);
+			$newarr = array();
+			foreach($stid as $val)
+			{
+				if(!empty($val['CHANNELID']))
+				{
+					if($val['PERM'] == 0)
+					{
+						$newarr['channel_black_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']][] = $val['APPID'];
+						$newarr['channel_black_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']] = array_unique($newarr['channel_black_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']]);
+					}
+					if($val['PERM'] == 1)
+					{
+						$newarr['channel_white_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']][] = $val['APPID'];
+						$newarr['channel_white_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']] = array_unique($newarr['channel_white_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']]);
+					}
+				}
+			}
+			foreach($newarr as $key => $emparr)
+			{
+				$cacheManager->setValue($key, $emparr);
+			}
+		}
+		//get all application & version
+		$query = "select apptab.*,vertab.* from (select PSK as apppsk,NAME,ICONPATH,CLASSNAME,APPTYPE,PATH,REQUIRED,to_char(REQUIREDTIME,'YYYY-MM-DD HH24:MI') as REQUIREDTIME,MANDATORY,UORDER,STATUS,IS_SHOWLIST,WEBAPP_URL,USE_PACKAGE_CLASS,USE_PACKAGE_MODEL,LONGDESCRIPTION, SCREENSHOTPATH1,SCREENSHOTPATH2,SCREENSHOTPATH3,SCREENSHOTPATH4,SCREENSHOTPATH5, URLSCHEMES from CPIC_APPLICATION_LIST where  status = 1 order by uorder asc) apptab left join (SELECT A .*, b.VERSION_NAME,	b.PSK as versionpsk FROM (SELECT MAX (version_code) AS versioncode,	AUTHOR, APPLICATION	FROM CPIC_APPLICATION_VERSION	GROUP BY APPLICATION, AUTHOR) A LEFT JOIN CPIC_APPLICATION_VERSION b ON b.APPLICATION = A .APPLICATION AND b.VERSION_CODE = A .versioncode) vertab on vertab.application = APPTAB.APPPSKcd";
+		$applist = $oracle->select($query);
+		$cacheManager->setValue('applist', $applist);
+		oci_close($conn);
+		file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s')."  all appauth memcache update.\r\n", FILE_APPEND );
+	}
+	
+	//devicelist to mengshuai
+	if($time == 4)
+	{
+		if(!empty($op))
+		{
+			$oracle = new DB_Oracle();
+			$conn = $oracle->connect(host,user,pwd,table,charset);
+			$query = "select devicesn,DEVICEAPPSTOREVERSION,status from devicelist where devicesn = '".$op['devicesn']."'";
+			$stid = $oracle->select($query);
+			$cacheManager->setValue('devicelist'.$op['devicesn'], $stid[0]);
+			oci_close($conn);
+			file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s').'  '.$op['devicesn']." device memcache update.\r\n", FILE_APPEND );
+		}
+	}
+	
+	//devicelist update
+	if($time == 9)
+	{
+		$oracle = new DB_Oracle();
+		$conn = $oracle->connect(host,user,pwd,table,charset);
+		$query = 'select count(*) as num from devicelist';
+		$stid = $oracle->select($query);
+		$num = $stid[0]['NUM'];
+		$page = ceil($num / $donum);
+		for($i=1;$i<=$page;$i++)
+		{
+			$query = 'select * from (SELECT rownum rn,dbtable.* from (SELECT devicesn,DEVICEAPPSTOREVERSION,status from devicelist ) dbtable where ROWNUM<='.($donum*$i).') where rn>'.($donum*($i-1));
+			$stid = $oracle->select($query);
+			foreach($stid as $val)
+			{
+				$cacheManager->setValue('devicelist'.$val['DEVICESN'], $val);
+			}
+		}
+		oci_close($conn);
+		file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s')." all device memcache update.\r\n", FILE_APPEND );
+	}
+
+	//db operate
+	if($time == 6) 
+	{
+		$oracle = new DB_Oracle();
+		$conn = $oracle->connect(host,user,pwd,table,charset);
+		if($op['op'] == 'update')
+		{
+			$ret = $oracle->update($op['table'], $op['row'], $op['where']);
+		}
+		if($op['op'] == 'insert')
+		{
+			$oracle->insert($op['table'], $op['row']);
+		}
+		if($op['op'] == 'select')
+		{
+			$ret = $oracle->select($op['query']);
+		}
+		oci_close($conn);
+		if(isset($ret))
+		{
+			return $ret;
+		}else{
+			return true;
+		}
+	}
+	/**
+	 * 登录开关
+	 * add by leo
+	 */
+	if($time == '99'){
+		$val=intval($op['flag']);
+		return $cacheManager->setValue('LOGINFLAG', $val);
+	}
+	
+	if($time == '100'){
+		return  $cacheManager->getValue('LOGINFLAG');
+	}
+	
+	//app list update self
+	if($time == '101')
+	{
+		$oracle = new DB_Oracle();
+		$conn = $oracle->connect(host,user,pwd,table,charset);
+		$query = "select apptab.*,vertab.* from (select PSK as apppsk,NAME,ICONPATH,CLASSNAME,APPTYPE,PATH,REQUIRED,to_char(REQUIREDTIME,'YYYY-MM-DD HH24:MI') as REQUIREDTIME,MANDATORY,UORDER,STATUS,IS_SHOWLIST,WEBAPP_URL,USE_PACKAGE_CLASS,USE_PACKAGE_MODEL from CPIC_APPLICATION_LIST where  status = 1 order by uorder asc) apptab left join (SELECT A .*, b.VERSION_NAME,	b.PSK as versionpsk FROM (SELECT MAX (version_code) AS versioncode,			APPLICATION	FROM CPIC_APPLICATION_VERSION	GROUP BY APPLICATION) A LEFT JOIN CPIC_APPLICATION_VERSION b ON b.APPLICATION = A .APPLICATION AND b.VERSION_CODE = A .versioncode) vertab on vertab.application = APPTAB.APPPSK";
+		$applist = $oracle->select($query);
+		$cacheManager->setValue('applist', $applist);
+		oci_close($conn);
+		file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s')." applist memcache update.\r\n", FILE_APPEND );
+	}
+	
+	//app auth user user to update group 
+	if($time == '102')
+	{
+		if(!empty($op))
+		{
+			$oracle = new DB_Oracle();
+			$conn = $oracle->connect(host,user,pwd,table,charset);
+			
+			$usergroup = $cacheManager->getValue('usergroupid'.$op['empno']);
+			$grouparr = $cacheManager->getValue('usercorp'.$usergroup);
+			//group
+			$query = 'select * from CPIC_GROUP_PERM where PERM = 1 and (GROUP_PSK = '.$grouparr['CORPID'].' or GROUP_PSK = '.$grouparr['BRANCHID'].' or GROUP_PSK = '.$grouparr['ZHONGZHIID'].' or GROUP_PSK = '.$grouparr['ZHIID'].') ';
+			$stid = $oracle->select($query);
+			$groupwithapp = array();
+			foreach($stid as $val)
+			{
+				if(!empty($val['GROUP_PSK']))
+				{
+					$groupwithapp[$val['GROUP_PSK']][] = $val['APP_PSK'];
+					$groupwithapp[$val['GROUP_PSK']] = array_unique($groupwithapp[$val['GROUP_PSK']]);
+				}else{
+					$cacheManager->setValue('groupperm'.$val['GROUP_PSK'], array());
+				}
+			}
+			foreach($groupwithapp as $key => $groupapp)
+			{
+				$cacheManager->setValue('groupperm'.$key, $groupapp);
+			}
+			
+			oci_close($conn);
+			file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s').'  '.$op['empno']." group perm memcache update.\r\n", FILE_APPEND );
+		}
+	}
+	
+	//app auth use groupid to update group 
+	if($time == '103')
+	{
+		if(!empty($op))
+		{
+			$oracle = new DB_Oracle();
+			$conn = $oracle->connect(host,user,pwd,table,charset);
+			
+			//group
+			$query = 'select * from CPIC_GROUP_PERM where PERM = 1 and GROUP_PSK = '.$op['group'];
+			$stid = $oracle->select($query);
+			$groupwithapp = array();
+			if(empty($stid)){$cacheManager->setValue('groupperm'.$op['group'], array());}
+			foreach($stid as $val)
+			{
+				if(!empty($val['GROUP_PSK']))
+				{
+					$groupwithapp[$val['GROUP_PSK']][] = $val['APP_PSK'];
+					$groupwithapp[$val['GROUP_PSK']] = array_unique($groupwithapp[$val['GROUP_PSK']]);
+				}
+			}
+			foreach($groupwithapp as $key => $groupapp)
+			{
+				$cacheManager->setValue('groupperm'.$key, $groupapp);
+			}
+			
+			oci_close($conn);
+			file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s').'  '.$op['group']." group perm memcache update.\r\n", FILE_APPEND );
+		}
+	}
+	
+	//app auth use userid to update white & black
+	if($time == '104')
+	{
+		if(!empty($op))
+		{
+			$oracle = new DB_Oracle();
+			$conn = $oracle->connect(host,user,pwd,table,charset);
+			
+			//white
+			//添加 any 防止出现多ID记录 导致错误 mod by leo
+			$query = 'SELECT * from CPIC_USER_PERM where PERM_TYPE = 2 and USER_PSK =  ANY (select psk from user_nj where id = \''.$op['empno'].'\') ';
+			$stid = $oracle->select($query);
+			$whitewithapp = array();
+			if(empty($stid)){$cacheManager->setValue('whiteperm'.$op['empno'], array());}
+			foreach($stid as $val)
+			{
+				if(!empty($val['USER_PSK']))
+				{
+					$whitewithapp[$op['empno']][] = $val['APP_PSK'];
+					$whitewithapp[$op['empno']] = array_unique($whitewithapp[$op['empno']]);
+				}
+			}
+			foreach($whitewithapp as $key => $whiteapp)
+			{
+				$cacheManager->setValue('whiteperm'.$op['empno'], $whiteapp);
+			}
+			//black
+			//添加 any 防止出现多ID记录 导致错误 mod by leo
+			$query = 'SELECT * from CPIC_USER_PERM where PERM_TYPE = 1 and USER_PSK = ANY (select psk from user_nj where id = \''.$op['empno'].'\') ';
+			$stid = $oracle->select($query);
+			$blackwithapp = array();
+			if(empty($stid)){$cacheManager->setValue('blackperm'.$op['empno'], array());}
+			foreach($stid as $val)
+			{
+				if(!empty($val['USER_PSK']))
+				{
+					$blackwithapp[$op['empno']][] = $val['APP_PSK'];
+					$blackwithapp[$op['empno']] = array_unique($blackwithapp[$op['empno']]);
+				}
+			}
+			foreach($blackwithapp as $key => $blackapp)
+			{
+				$cacheManager->setValue('blackperm'.$op['empno'], $blackapp);
+			}
+			
+			oci_close($conn);
+			file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s').'  '.$op['empno']." black & white perm memcache update.\r\n", FILE_APPEND );
+		}
+	}
+	
+	//app auth use channelid & groupid to update channel
+	if($time == '105')
+	{
+		if(!empty($op))
+		{
+			$oracle = new DB_Oracle();
+			$conn = $oracle->connect(host,user,pwd,table,charset);
+			
+			$query = 'select * from CHANNEL_PERM where CHANNELID = '.$op['channel'].' and GROUPID = '.$op['group'];
+			$stid = $oracle->select($query);
+			$newarr = array();
+			$cacheManager->setValue('channel_black_perm_'.$op['channel'].'_'.$op['group'], array());
+			$cacheManager->setValue('channel_white_perm_'.$op['channel'].'_'.$op['group'], array());
+			if(empty($stid)){$cacheManager->setValue('channel_black_perm_'.$op['channel'].'_'.$op['group'], array());}
+			if(empty($stid)){$cacheManager->setValue('channel_white_perm_'.$op['channel'].'_'.$op['group'], array());}
+			foreach($stid as $val)
+			{
+				if(!empty($val['CHANNELID']))
+				{
+					if($val['PERM'] == 0)
+					{
+						$newarr['channel_black_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']][] = $val['APPID'];
+						$newarr['channel_black_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']] = array_unique($newarr['channel_black_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']]);
+					}
+					if($val['PERM'] == 1)
+					{
+						$newarr['channel_white_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']][] = $val['APPID'];
+						$newarr['channel_white_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']] = array_unique($newarr['channel_white_perm_'.$val['CHANNELID'].'_'.$val['GROUPID']]);
+					}
+				}
+			}
+			foreach($newarr as $key => $emparr)
+			{
+				$cacheManager->setValue($key, $emparr);
+			}
+			
+			oci_close($conn);
+			file_put_contents ( logurl . 'cache'.date('Ymd').'.txt', date('Y-m-d H:i:s').'  '.$op['channel'].' & '.$op['group']." black & white channel perm memcache update.\r\n", FILE_APPEND );
+		}
+	}
+}
+?>

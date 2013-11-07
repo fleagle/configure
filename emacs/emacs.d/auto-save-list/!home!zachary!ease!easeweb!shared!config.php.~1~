@@ -1,0 +1,15 @@
+<?php
+#定义是否显示错误  @author leo
+ini_set('display_errors', 0);
+#定义错误级别 不显示NOTICE级别 @author leo
+ini_set('error_reporting', 'error_reporting=E_ALL & ~E_NOTICE');
+#设置 cookie HTTPONLY属性 @author leo
+ini_set("session.cookie_httponly", 1);
+
+require_once('conn.php');
+
+$starttime = strtotime('now');
+define('starttime', $starttime);
+
+date_default_timezone_set("PRC");
+?>

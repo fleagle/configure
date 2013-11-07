@@ -1,0 +1,42 @@
+[dbconn]
+db_address = 10.101.2.17
+db_port = 1521
+db_sid = ease01
+db_username = immuser
+db_password = oracle123
+db_charset = AL32UTF8
+
+[interface_check]
+address = http://mamsvc.innofidei.com/public-ease-sdk.interface.php 
+[upload]
+weburl = http://mam.innofidei.com/svc/uploads/cpic/
+serverurl = /var/www/apperian/easeweb/admin/uploads/cpic/
+appurl = http://mam.innofidei.com/svc/uploads/cpic/
+
+[server]
+admin = http://mam.innofidei.com
+api = http://mamsvc.innofidei.com
+
+[session]
+tokentime = 86400
+
+[slave_redis]
+redis_ip = 127.0.0.1
+redis_port = 6379
+
+[log]
+log_address = /var/www/apperian/easeweb/admin/interface/admin/log/
+log_login_path = /var/www/apperian/easeweb/admin/log/login_log/
+
+[default_value]
+RMCP = 1
+sleeptime = 0.5
+
+[switch]
+log_switch = true
+yl_switch = false
+db_switch = true
+err_switch = false
+
+
+

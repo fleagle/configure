@@ -1,0 +1,26 @@
+<?php 
+/*
+ * 
+ * @(#)TEMPLATE.php.tpl
+ * Author: Zachary.Ma
+ * Date: 06 Nov 2013
+ * Discription:
+ *
+ */
+
+
+function test_function(){
+
+        $test = 0;
+
+        if(){
+                echo "";
+        }else{
+                fdsafdsafdsa;
+                fdsafdsa;
+        }
+        
+  }
+
+
+?>

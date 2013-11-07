@@ -1,0 +1,101 @@
+;;=================================
+;; 
+;; @(#).emacs
+;; Author: Zachary.Ma
+;; Date: 25 Apr 2013
+;; Discription: Zachary's emacs config file.
+;;
+;;=================================
+
+
+;;=================================
+;; Require load path
+;;=================================
+(add-to-list 'load-path (expand-file-name "~/.emacs.d/"))
+(add-to-list 'load-path (expand-file-name "~/.emacs.d/plugins/"))
+
+;;================================
+;; Custom config
+;;================================
+(require 'global)
+
+;;=================================
+;; subversion plugins
+;;=================================
+;;(require 'psvn)
+
+;;=================================
+;; Color theme
+;;=================================
+(add-to-list 'load-path "~/.emacs.d/plugins/color-theme/")
+(require 'color-theme)
+(color-theme-initialize)
+(color-theme-dark-blue2)
+
+;;=================================
+;; org-mod publish project
+;;=================================
+(add-to-list 'load-path "~/.emacs.d/org-mod/")
+(require 'orgpublish)
+
+;;=================================
+;; Template define
+;;=================================
+(require 'template)
+(template-initialize)
+(setq template-default-directories (cons "~/.emacs.d/templates/" template-default-directories))
+
+;;=================================
+;; Yasnippet config
+;;=================================
+(add-to-list 'load-path "~/.emacs.d/plugins/yasnippet/")
+(require 'yasnippet)
+(setq yas/prompt-functions 
+      '(yas/dropdown-prompt yas/x-prompt yas/completing-prompt yas/ido-prompt yas/no-prompt))
+(yas/global-mode 1)
+(yas/minor-mode-on)
+
+;;=================================
+;; Auto complete
+;;=================================
+(add-to-list 'load-path "~/.emacs.d/plugins/auto-complete-1.3.1")
+(require 'auto-complete)
+(require 'auto-complete-config)
+(add-to-list 'ac-dictionary-directories "~/.emacs.d/plugins/auto-complete-1.3.1/ac-dict")
+(global-auto-complete-mode t)
+(ac-config-default)
+
+;;=================================
+;; Yaml mode config
+;;=================================
+(require 'yaml-mode)
+(add-to-list 'auto-mode-alist '("\\.yaml$" yaml-mode))
+
+;;=================================
+;; PHP mode config
+;;=================================
+(add-to-list 'load-path "~/.emacs.d/plugins/php-mode")
+(require 'php-mode)
+(setq c-default-style "linux" c-basic-offset 4)
+(add-hook 'php-mode-hook
+       '(lambda () (define-abbrev php-mode-abbrev-table "ex" "extends")))
+(add-hook 'php-mode-hook (lambda ()
+    (defun ywb-php-lineup-arglist-intro (langelem)
+      (save-excursion
+        (goto-char (cdr langelem))
+        (vector (+ (current-column) c-basic-offset))))
+    (defun ywb-php-lineup-arglist-close (langelem)
+      (save-excursion
+        (goto-char (cdr langelem))
+        (vector (current-column))))
+    (c-set-offset 'arglist-intro 'ywb-php-lineup-arglist-intro)
+    (c-set-offset 'arglist-close 'ywb-php-lineup-arglist-close)))
+
+(require 'multi-web-mode)
+(setq mweb-default-major-mode 'html-mode)
+(setq mweb-tags '((php-mode "<\\?php\\|<\\? \\|<\\?=" "\\?>")
+                  (js-mode "<script[^>]*>" "</script>")
+                  (css-mode "<style[^>]*>" "</style>")))
+(setq mweb-filename-extensions '("php" "htm" "html" "ctp" "phtml" "php4" "php5"))
+(multi-web-global-mode 1)
+
