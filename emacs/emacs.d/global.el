@@ -159,5 +159,3 @@
 ;;启动外置chrome浏览器设置
 (setq browse-url-browser-function 'browse-url-generic)
 (setq browse-url-generic-program "Chrome")
-
-
