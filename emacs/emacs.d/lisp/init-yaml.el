@@ -1,0 +1,11 @@
+(provide 'init-yaml)
+(eval-when-compile
+  (require 'cl))
+
+
+;;;;##########################################################################
+;;;;  User Options, Variables
+;;;;##########################################################################
+(when (maybe-require-package 'yaml-mode)
+  (add-auto-mode 'yaml-mode "\\.yml\\.erb\\'")
+  (add-hook 'yaml-mode-hook 'goto-address-prog-mode))
