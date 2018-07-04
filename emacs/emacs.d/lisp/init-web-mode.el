@@ -84,4 +84,7 @@
         ("css" . (ac-source-words-in-buffer ac-source-abbrev ac-source-css-property ac-source-emmet-css-snippets))
         ))
 
+;; New lines are always indented
+(global-set-key (kbd "RET") 'newline-and-indent)
+
 (add-hook 'web-mode-hook #'(lambda () (yas-activate-extra-mode 'html-mode)))

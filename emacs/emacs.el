@@ -97,8 +97,8 @@
 ;(require 'init-editing-utils)
 (require 'init-whitespace)
 ;;
-;;(require 'init-xterm)
-;(require 'init-dired)
+(require 'init-shell)
+(require 'init-dired)
 ;;;; lisp
 ;(require 'init-paredit)
 ;(require 'init-lisp)

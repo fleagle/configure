@@ -1,10 +1,10 @@
-;;; init-git.el --- 
+;;; init-git.el ---
 
 ;; Copyright 2018 Zachary.Ma
 ;;
 ;; Author: fleagle236@gmail.com
 ;; Version: $Id: init-git.el,v 0.0 2018/06/29 11:32:43 zachary Exp $
-;; Keywords: 
+;; Keywords:
 ;; X-URL: not distributed yet
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@
 
 ;;; Commentary:
 
-;; 
+;;
 
 ;; Put this file into your load-path and the following into your ~/.init-git:
 ;;   (require 'init-git)

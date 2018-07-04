@@ -1,10 +1,10 @@
-;;; init-recentf.el --- 
+;;; init-recentf.el ---
 
 ;; Copyright 2018 Zachary.Ma
 ;;
 ;; Author: fleagle236@gmail.com
 ;; Version: $Id: init-recentf.el,v 0.0 2018/06/29 15:41:52 zachary Exp $
-;; Keywords: 
+;; Keywords:
 ;; X-URL: not distributed yet
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@
 
 ;;; Commentary:
 
-;; 
+;;
 
 ;; Put this file into your load-path and the following into your ~/.emacs:
 ;;   (require 'init-recentf)
@@ -43,16 +43,17 @@
 (add-hook 'after-init-hook 'recentf-mode)
 (setq-default
  recentf-max-saved-items 1000
+ recentf-max-menu-items 15
  recentf-exclude '("/tmp/" "/ssh:"))
 
 (defun recentf-open-files-compl ()
   (interactive)
   (let* ((all-files recentf-list)
-	 (tocpl (mapcar (function 
+	 (tocpl (mapcar (function
 			 (lambda (x) (cons (file-name-nondirectory x) x))) all-files))
 	 (prompt (append '("File name: ") tocpl))
 	 (fname (completing-read (car prompt) (cdr prompt) nil nil)))
-    (find-file (cdr (assoc-ignore-representation fname tocpl))))) 
+    (find-file (cdr (assoc-ignore-representation fname tocpl)))))
 
 (global-set-key (kbd "C-c C-l") 'recentf-open-files-compl)
 
